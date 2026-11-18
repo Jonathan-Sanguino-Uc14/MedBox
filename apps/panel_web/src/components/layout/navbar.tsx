@@ -6,7 +6,8 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { useRouter } from "next/navigation";
 import { specialtyLabels, Specialty } from "@/lib/data";
-import { supabase } from "@/lib/supabase";
+import { leaveAccount } from "@/lib/session";
+import { useState } from "react";
 import { useSpecialist } from "@/lib/use-specialist";
 
 type NavbarProps = {
@@ -17,9 +18,10 @@ export function Navbar({ onMenuToggle }: NavbarProps) {
   const router = useRouter();
   const { role, specialty, setSpecialty } = useSpecialist();
 
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/login");
+    try { await leaveAccount(); router.replace("/login"); }
+    catch (e) { setLogoutError((e as Error).message); }
   }
 
   return (
@@ -71,6 +73,7 @@ export function Navbar({ onMenuToggle }: NavbarProps) {
           Cerrar sesión
         </button>
       </div>
+      {logoutError && <p role="alert" className="text-sm text-red-700">{logoutError}</p>}
     </header>
   );
 }

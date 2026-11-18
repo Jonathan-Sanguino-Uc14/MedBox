@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { friendly } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
+import { leaveAccount } from "@/lib/session";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,16 +22,26 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setBusy(false);
-    if (error) {
-      setError(friendly(error.message));
-      return;
-    }
-    router.replace("/panel");
+    try {
+      await leaveAccount();
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw new Error(friendly(error.message));
+      router.replace("/panel");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  async function useAnotherEmail() {
+    setBusy(true);
+    setError(null);
+    try {
+      await leaveAccount();
+      setEmail("");
+      setPassword("");
+      document.getElementById("login-email")?.focus();
+    } catch (err) { setError((err as Error).message); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -41,9 +52,11 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="grid gap-4">
         <Field label="Correo electrónico">
           <Input
+            id="login-email"
+            name="email"
             type="email"
             required
-            autoComplete="email"
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -52,16 +65,16 @@ export default function LoginPage() {
           <Input
             type="password"
             required
-            minLength={8}
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
-        {error && <p className="text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <Button type="submit" disabled={busy}>
           {busy ? "Entrando…" : "Entrar"}
         </Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={useAnotherEmail}>Usar otro correo</Button>
       </form>
       <p className="mt-6 text-sm text-[#66746e]">
         ¿Eres profesional de la salud y no tienes cuenta?{" "}

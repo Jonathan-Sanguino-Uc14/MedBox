@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { validatedUser } from "@/lib/session";
 
 export default function Home() {
   const router = useRouter();
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      router.replace(data.session ? "/panel" : "/login");
-    });
+    validatedUser().then((user) => {
+      router.replace(user ? "/panel" : "/login");
+    }).catch(() => router.replace("/login"));
   }, [router]);
   return <p className="p-8 text-[#66746e]">Cargando…</p>;
 }

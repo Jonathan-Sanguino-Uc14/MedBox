@@ -12,10 +12,13 @@ import { Input } from "@/components/ui/input";
 import { friendly, registerAsSpecialist, specialtyLabels } from "@/lib/data";
 import type { ProfessionalProfile, Specialty } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
+import { validatedUser, leaveAccount } from "@/lib/session";
 
 function RegisterForm() {
   const router = useRouter();
   const [hasSession, setHasSession] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [sessionEmail, setSessionEmail] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [profile, setProfile] = useState<ProfessionalProfile>({
@@ -33,7 +36,12 @@ function RegisterForm() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setHasSession(!!data.session));
+    let alive = true;
+    validatedUser().then((user) => {
+      if (alive) { setHasSession(!!user); setSessionEmail(user?.email ?? ""); }
+    }).catch((err) => { if (alive) setError(err.message); })
+      .finally(() => { if (alive) setChecking(false); });
+    return () => { alive = false; };
   }, []);
 
   const set = <K extends keyof ProfessionalProfile>(k: K, v: ProfessionalProfile[K]) =>
@@ -41,6 +49,7 @@ function RegisterForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (checking || busy) return;
     if (!accepted) {
       setError("Confirma la declaración para continuar.");
       return;
@@ -52,6 +61,13 @@ function RegisterForm() {
     setBusy(true);
     setError(null);
     try {
+      if (hasSession) {
+        const user = await validatedUser();
+        if (!user || user.email !== sessionEmail) {
+          setHasSession(false);
+          throw new Error("La sesión cambió o la cuenta fue eliminada. Introduce tu correo y contraseña para registrarte.");
+        }
+      }
       if (!hasSession) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
@@ -96,6 +112,16 @@ function RegisterForm() {
       title={hasSession ? "Completa tu perfil profesional" : "Registro de profesional de la salud"}
       subtitle="Tu cuenta se mostrará como «no verificada» hasta que Med Box revise tu cédula."
     >
+      {checking && <p role="status">Comprobando sesión…</p>}
+      {hasSession && <div className="mb-4 grid gap-2 rounded-md bg-slate-50 p-3">
+        <p className="break-all text-sm">Cuenta actual: {sessionEmail}</p>
+        <Button type="button" variant="outline" disabled={busy} onClick={async () => {
+          setBusy(true);
+          try { await leaveAccount(); setHasSession(false); setSessionEmail(""); setEmail(""); setPassword(""); setError(null); }
+          catch (err) { setError((err as Error).message); }
+          finally { setBusy(false); }
+        }}>Registrarme con otro correo</Button>
+      </div>}
       <form onSubmit={handleSubmit} className="grid gap-4">
         {!hasSession && (
           <>
@@ -198,7 +224,7 @@ function RegisterForm() {
           Declaro que los datos son correctos y entiendo que la cuenta aparece como no verificada.
         </label>
         {error && <p className="text-sm text-red-700">{error}</p>}
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || checking}>
           {busy ? "Guardando…" : hasSession ? "Guardar perfil" : "Crear cuenta"}
         </Button>
       </form>
