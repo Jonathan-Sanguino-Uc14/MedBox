@@ -127,6 +127,9 @@ export function friendly(message: string) {
   if (/row-level security|permission denied/i.test(message)) {
     return "No tienes permiso para esta acción.";
   }
+  if (/violates foreign key constraint/i.test(message)) {
+    return "Tu perfil profesional no está completo en la base de datos. Pide al administrador que lo revise.";
+  }
   if (/Invalid login credentials/i.test(message)) {
     return "Correo o contraseña incorrectos, o la cuenta no está confirmada.";
   }

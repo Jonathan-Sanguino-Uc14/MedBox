@@ -33,7 +33,7 @@ Actualizado: 18/11/2026. Esta sección resume lo construido. Si basta para la ta
   - `0006`: los ejercicios físicos y repeticiones solo se asignan en sesiones de fisioterapia (aplicadas 17/11/2026);
   - `0007`: expediente profesional también en fisioterapia y oftalmología (aplicada 17/11/2026);
   - `0008`: agenda: `scheduling_settings`, `availability_rules` (día ISO 1–7), `availability_exceptions`, `appointments` (exclusión gist contra dobles reservas; escritura solo por RPC) y RPC `get_available_slots`, `book_appointment`, `cancel_appointment`, `reschedule_appointment`, `confirm_appointment`, `close_appointment` (aplicada 17/11/2026; prueba `supabase/tests/agenda_smoke.sql` → `AGENDA OK`).
-  - `0009`: `book_appointment` rechaza cualquier hora ya pasada, también para el especialista (antes permitía hasta un día atrás); afecta igual a `reschedule_appointment`. **Pendiente de aplicar** en el SQL Editor.
+  - `0009`: horario, bloqueos y ajustes de agenda ligados a `auth.users` (antes a `public.specialists`, y un profesional sin esa fila no podía guardar su horario: error `availability_rules_specialist_id_fkey`); `book_appointment` rechaza cualquier hora ya pasada, también para el especialista, y afecta igual a `reschedule_appointment` (aplicada 18/11/2026).
 - **No hay CLI ni psql locales.** Las migraciones se aplican en el SQL Editor del dashboard; con el navegador integrado se inserta el SQL en Monaco mediante `window.monaco.editor.getModels()[0].setValue(...)`.
 - **Pruebas SQL** (transacción con rollback, no dejan datos): `supabase/tests/rls_smoke.sql` → `RLS OK`; `supabase/tests/physio_smoke.sql` → `FISIO OK`.
 - **Seguridad:**

@@ -1,5 +1,21 @@
--- Med Box 0009: ninguna cita puede reservarse en una fecha u hora pasada (paciente, asistente ni especialista).
--- Misma función que 0008 salvo el chequeo de fecha. Conserva firma, permisos y auditoría.
+-- Med Box 0009: agenda para todo profesional y sin reservas en el pasado.
+--
+-- 1. El horario, los bloqueos y los ajustes de agenda apuntaban a public.specialists, pero las sesiones
+--    y citas apuntan a auth.users. Un profesional con sesiones y sin fila en specialists no podía guardar
+--    su horario ("violates foreign key constraint availability_rules_specialist_id_fkey").
+--    Se alinean con auth.users; RLS (specialist_id = auth.uid()) sigue limitando cada fila a su dueño.
+-- 2. book_appointment (y por tanto reschedule_appointment) rechaza cualquier hora ya pasada,
+--    también para el especialista. Conserva firma, permisos y auditoría.
+
+alter table public.scheduling_settings drop constraint if exists scheduling_settings_specialist_id_fkey;
+alter table public.scheduling_settings add constraint scheduling_settings_specialist_id_fkey
+  foreign key (specialist_id) references auth.users(id) on delete cascade;
+alter table public.availability_rules drop constraint if exists availability_rules_specialist_id_fkey;
+alter table public.availability_rules add constraint availability_rules_specialist_id_fkey
+  foreign key (specialist_id) references auth.users(id) on delete cascade;
+alter table public.availability_exceptions drop constraint if exists availability_exceptions_specialist_id_fkey;
+alter table public.availability_exceptions add constraint availability_exceptions_specialist_id_fkey
+  foreign key (specialist_id) references auth.users(id) on delete cascade;
 
 create or replace function public.book_appointment(p_session_id uuid, p_start timestamptz,
   p_modality text default 'in_person', p_source text default null, p_notes text default '')
