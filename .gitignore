@@ -1,0 +1,28 @@
+# Local SDK files, generated builds and downloaded reference repositories
+references/
+*.log
+
+apps/panel_web/node_modules/
+apps/panel_web/.next/
+apps/panel_web/.next-dev/
+apps/panel_web/out/
+apps/panel_web/next-env.d.ts
+
+# Secrets and local tooling
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+key.properties
+local.properties
+.claude/
+.codex/
+.agents/
+*.tsbuildinfo
+# Local reference images and screenshots
+docs/screenshots/
+docs/document-reference/

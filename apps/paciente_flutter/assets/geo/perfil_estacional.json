@@ -1,0 +1,75 @@
+{
+  "metadata": {
+    "fuente": "Secretaría de Salud · Dirección General de Epidemiología, Anuarios de Morbilidad (Quintana Roo)",
+    "url": "https://epidemiologia.salud.gob.mx/anuario/html/index.html",
+    "fecha_consulta": "2026-11-17",
+    "version": "2026.11-1",
+    "metodo": "Padecimientos tomados del perfil estatal de los anuarios. La asignación a cada zona es orientativa, según su entorno (densidad, inundaciones, cercanía a la selva); no es un conteo de casos por zona."
+  },
+  "padecimientos": [
+    {
+      "id": "intestinales",
+      "nombre": "Infecciones intestinales y amebiasis",
+      "temporada": "calorLluvias",
+      "prevencion": "Lávate las manos, toma agua purificada, refrigera alimentos y desinfecta frutas y verduras.",
+      "signos_alarma": "Diarrea con sangre, vómito que no cede o signos de deshidratación.",
+      "zonas": ["hotel_centro", "regiones_densas", "periferia_selva", "sur_huayacan"]
+    },
+    {
+      "id": "golpe_calor",
+      "nombre": "Golpe de calor",
+      "temporada": "calorLluvias",
+      "prevencion": "Hidrátate seguido, usa ropa ligera y evita el sol directo entre 11:00 y 16:00.",
+      "signos_alarma": "Confusión, piel caliente y seca o desmayo.",
+      "zonas": ["hotel_centro", "regiones_densas", "periferia_selva", "sur_huayacan"]
+    },
+    {
+      "id": "dengue_zika",
+      "nombre": "Dengue y zika",
+      "temporada": "calorLluvias",
+      "prevencion": "Elimina recipientes con agua acumulada, usa repelente y mosquiteros.",
+      "signos_alarma": "Fiebre alta con dolor de cuerpo, sangrado o dolor abdominal intenso.",
+      "zonas": ["hotel_centro", "regiones_densas", "periferia_selva", "sur_huayacan"]
+    },
+    {
+      "id": "leptospirosis",
+      "nombre": "Leptospirosis",
+      "temporada": "calorLluvias",
+      "prevencion": "Evita caminar descalzo en charcos o calles inundadas y controla roedores.",
+      "signos_alarma": "Fiebre con dolor en pantorrillas u ojos rojos después de inundaciones.",
+      "zonas": ["regiones_densas", "sur_huayacan", "periferia_selva"]
+    },
+    {
+      "id": "iras",
+      "nombre": "Infecciones respiratorias agudas",
+      "temporada": "nortes",
+      "prevencion": "Abrígate en los cambios de temperatura, ventila espacios y cubre nariz y boca al toser.",
+      "signos_alarma": "Dificultad para respirar o fiebre de más de 3 días.",
+      "zonas": ["hotel_centro", "regiones_densas", "periferia_selva", "sur_huayacan"]
+    },
+    {
+      "id": "alergias_humedad",
+      "nombre": "Alergias por humedad y moho",
+      "temporada": "nortes",
+      "prevencion": "Ventila tu casa, seca bien la ropa y limpia el moho de muros y baños.",
+      "signos_alarma": "Silbido al respirar o falta de aire.",
+      "zonas": ["hotel_centro", "regiones_densas", "periferia_selva", "sur_huayacan"]
+    },
+    {
+      "id": "leishmaniasis",
+      "nombre": "Leishmaniasis cutánea",
+      "temporada": "todoElAnio",
+      "prevencion": "Usa repelente y manga larga al atardecer cerca de la selva.",
+      "signos_alarma": "Llaga en la piel que no cicatriza en varias semanas.",
+      "zonas": ["periferia_selva"]
+    },
+    {
+      "id": "vectores_periurbanos",
+      "nombre": "Mosquitos periurbanos",
+      "temporada": "todoElAnio",
+      "prevencion": "Coloca mosquiteros y elimina maleza y agua estancada alrededor de la casa.",
+      "signos_alarma": "Fiebre después de picaduras.",
+      "zonas": ["periferia_selva"]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "titulo": "Macro-zonas de Cancún (geo_areas)",
+    "delimitacion": "Aproximada, para orientación. Sustituir por el Marco Geoestadístico del INEGI cuando se valide su licencia.",
+    "version": "2026.11-2"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "hotel_centro", "nombre": "Zona Hotelera y Centro", "descripcion": "Zona Hotelera, supermanzanas del centro y Puerto Juárez." },
+      "geometry": { "type": "MultiPolygon", "coordinates": [
+        [[[-86.865, 21.150], [-86.822, 21.150], [-86.800, 21.205], [-86.835, 21.212], [-86.850, 21.178], [-86.865, 21.150]]],
+        [[[-86.805, 21.142], [-86.745, 21.142], [-86.742, 21.132], [-86.752, 21.100], [-86.765, 21.050], [-86.775, 21.035], [-86.782, 21.040], [-86.770, 21.100], [-86.760, 21.130], [-86.800, 21.135], [-86.805, 21.142]]]
+      ] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "regiones_densas", "nombre": "Regiones densas (90s y 200s)", "descripcion": "Regiones de alta densidad al poniente y suroeste." },
+      "geometry": { "type": "MultiPolygon", "coordinates": [
+        [[[-86.905, 21.150], [-86.865, 21.150], [-86.850, 21.178], [-86.835, 21.212], [-86.880, 21.205], [-86.905, 21.185], [-86.905, 21.150]]],
+        [[[-86.915, 21.115], [-86.880, 21.110], [-86.880, 21.150], [-86.905, 21.150], [-86.915, 21.115]]]
+      ] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "periferia_selva", "nombre": "Periferia y borde de selva", "descripcion": "Tres Reyes, Alfredo V. Bonfil y asentamientos junto a la selva." },
+      "geometry": { "type": "MultiPolygon", "coordinates": [
+        [[[-86.950, 21.150], [-86.905, 21.150], [-86.905, 21.185], [-86.880, 21.205], [-86.930, 21.220], [-86.950, 21.150]]],
+        [[[-86.950, 21.100], [-86.915, 21.115], [-86.905, 21.150], [-86.950, 21.150], [-86.950, 21.100]]],
+        [[[-86.880, 21.060], [-86.830, 21.060], [-86.822, 21.090], [-86.880, 21.090], [-86.880, 21.060]]]
+      ] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "sur_huayacan", "nombre": "Polígono Sur y Av. Huayacán", "descripcion": "Sur de la ciudad sobre Av. Huayacán y Av. Kabah." },
+      "geometry": { "type": "Polygon", "coordinates": [[[-86.880, 21.090], [-86.822, 21.090], [-86.822, 21.150], [-86.880, 21.150], [-86.880, 21.090]]] }
+    }
+  ]
+}
