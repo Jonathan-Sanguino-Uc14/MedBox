@@ -2,7 +2,7 @@
 
 ## 0. ESTADO ACTUAL (leer esto primero)
 
-Actualizado: 17/11/2026. Esta sección resume lo construido. Si basta para la tarea pedida, no hace falta leer el resto: las secciones 1–11 son la especificación original y su historia, y donde contradicen esta sección manda esta.
+Actualizado: 18/11/2026. Esta sección resume lo construido. Si basta para la tarea pedida, no hace falta leer el resto: las secciones 1–11 son la especificación original y su historia, y donde contradicen esta sección manda esta.
 
 ### Decisiones del equipo que cambian el plan original
 - **Fisioterapeuta → panel web** (`apps/panel_web`). **Paciente → app móvil** (`apps/paciente_flutter`), que es solo para pacientes; si entra una cuenta profesional, la app la manda al panel.
@@ -33,6 +33,7 @@ Actualizado: 17/11/2026. Esta sección resume lo construido. Si basta para la ta
   - `0006`: los ejercicios físicos y repeticiones solo se asignan en sesiones de fisioterapia (aplicadas 17/11/2026);
   - `0007`: expediente profesional también en fisioterapia y oftalmología (aplicada 17/11/2026);
   - `0008`: agenda: `scheduling_settings`, `availability_rules` (día ISO 1–7), `availability_exceptions`, `appointments` (exclusión gist contra dobles reservas; escritura solo por RPC) y RPC `get_available_slots`, `book_appointment`, `cancel_appointment`, `reschedule_appointment`, `confirm_appointment`, `close_appointment` (aplicada 17/11/2026; prueba `supabase/tests/agenda_smoke.sql` → `AGENDA OK`).
+  - `0009`: `book_appointment` rechaza cualquier hora ya pasada, también para el especialista (antes permitía hasta un día atrás); afecta igual a `reschedule_appointment`. **Pendiente de aplicar** en el SQL Editor.
 - **No hay CLI ni psql locales.** Las migraciones se aplican en el SQL Editor del dashboard; con el navegador integrado se inserta el SQL en Monaco mediante `window.monaco.editor.getModels()[0].setValue(...)`.
 - **Pruebas SQL** (transacción con rollback, no dejan datos): `supabase/tests/rls_smoke.sql` → `RLS OK`; `supabase/tests/physio_smoke.sql` → `FISIO OK`.
 - **Seguridad:**
@@ -56,7 +57,10 @@ Actualizado: 17/11/2026. Esta sección resume lo construido. Si basta para la ta
 
 ### Mapa de código
 - **App** (`apps/paciente_flutter/lib`):
-  - `data.dart`: repositorio Supabase, modo exploración y subida con progreso;
+  - `patient_home.dart` (18/11/2026): inicio del paciente rediseñado según los mockups, con 4 pestañas **Hoy · Progreso · Mensajes · Perfil** y campana de avisos (revisiones recientes, citas en 72 h, citas canceladas por el especialista). Hoy: tarjeta con racha y «X de Y hoy», plan del día (estado «en revisión»/«revisado» igual que «por revisar» en el panel), próxima cita y última revisión. Progreso: cumplimiento con la misma fórmula del expediente del panel (registros completados en la semana / actividades activas, tope 100), dolor `pain_after ?? pain`, barras de 6 semanas, logros y envíos recientes. Navegación: las 4 pestañas principales se cambian también deslizando (`PageView`), y dentro de Mensajes se desliza entre sus pestañas (`TabBarView`). Mensajes (decisión del equipo 18/11/2026: asistente en vez de chat libre, **un asistente independiente por especialista**, cada uno en su pestaña con su conversación, sus citas y su agenda; si el paciente pide otra especialidad lo manda a la pestaña de ese especialista): asistentes de citas (`appointment_assistant.dart`: entiende en español agendar/reagendar/cancelar/mis citas, día de la semana, «mañana», número de día, «por la tarde», «a las 4»; solo ofrece horarios devueltos por `get_available_slots`; tocar un horario llama directo a `book_appointment`/`reschedule_appointment`; cancelar pide confirmación; preguntas clínicas se remiten al especialista; respuestas con el contrato `{reply_text, action_type, available_slots, booking_details}` para cambiar luego el intérprete local por la Edge Function `chat-agent` con Gemini sin tocar la pantalla; la conversación vive en memoria mientras la app está abierta) y «Mis citas» (próximas, reagendar, cancelar, historial y reserva manual por día). Las revisiones del especialista se ven en Hoy, en la campana y en el seguimiento de cada sesión. Perfil: especialistas, vincular código, solicitudes, privacidad y cierre de sesión. Observatorio y farmacias ocultos con `showPublicHealth = false`;
+  - Logo: `assets/med_box_logo_wide.png` (recorte del logo oficial con fondo transparente) en `Brand` y en el encabezado de Hoy;
+  - `theme.dart`: tokens Med Box iguales al panel, Manrope (títulos) + Inter (texto) vía `google_fonts`, y acentos por especialidad (`Specialty.accent/soft/faded`) idénticos a `barColors` del panel; `specialty_screen.dart` usa esos mismos acentos;
+  - `data.dart`: repositorio Supabase, modo exploración, subida con progreso y agenda del paciente (`Appointment`, `myAppointments`, `availableSlots`, `bookAppointment`, `rescheduleAppointment`, `cancelAppointment`; etiquetas de estado iguales a `statusText` del panel);
   - `screens.dart`: pantallas del paciente;
   - `specialty_screen.dart`: inicio de cada sesión con el mismo diseño para las 4 especialidades (Información general, plan, progreso, Sesiones y Notificaciones); colores y textos por especialidad en `_Look`. Piel usa seguimiento fotográfico; fisio, gráfica de dolor y botón «Ver demostración y grabar»; mente, frecuencia de emociones;
   - `exercise_analysis.dart`: 5 detectores portados de PhysioBuddy (curl de bíceps, cuádriceps, hombros, sentadilla, elevación de rodilla) más métricas;
@@ -68,7 +72,7 @@ Actualizado: 17/11/2026. Esta sección resume lo construido. Si basta para la ta
   - `config.dart`: datos públicos de Supabase.
 - **Panel** (`apps/panel_web`, Next.js 15 con exportación estática y Tailwind; base de UI de fisio-app): `src/components/specialty-workspace.tsx` (expediente del paciente con el mismo diseño para las 4 especialidades: Inicio, Información general, plan, progreso, Sesiones y, en piel/mente, notas clínicas de `clinical_notes`; paleta por `data-specialty` en `globals.css`; vista previa sin cuenta en `/vista-clinica`), `src/lib/data.ts` (consultas y RPC), `src/lib/use-specialist.tsx` (control de acceso en el cliente; la seguridad real es RLS) y las páginas en `src/app/(app)/{panel,invitar,pacientes,paciente,ejercicios}` y `src/app/(auth)/{login,registro}`.
 - **Pruebas:**
-  - app: `flutter test` (31 aprobadas), incluido el analizador con poses sintéticas y la animación que alcanza los umbrales;
+  - app: `flutter test` (52 aprobadas, incluye `patient_home_test.dart` y `appointment_assistant_test.dart`: fechas, intenciones, reservar, reagendar, cancelar y negativa clínica), incluido el analizador con poses sintéticas y la animación que alcanza los umbrales;
   - panel: `npx tsc --noEmit` y `npx next build`.
 
 ### Cómo correr y verificar
@@ -88,8 +92,9 @@ Actualizado: 17/11/2026. Esta sección resume lo construido. Si basta para la ta
 ### Pendiente o siguiente
 - Las 4 especialidades ya tienen diseño propio en app y panel (17/11/2026). Las 4 tienen expediente profesional en `clinical_notes`; fisio y ojos vía la migración `0007`. La app del paciente solo muestra sesiones activas: al cerrarla el especialista, sale del inicio del paciente (los datos se conservan).
 - Panel rediseñado (17/11/2026) según los mockups: tokens Med Box + Manrope/Inter, sidebar nuevo, inicio con «Citas hoy» reales, «Por revisar», cumplimiento semanal y «Necesitan atención»; expediente con barras de cumplimiento (6 semanas) y línea de dolor; `/agenda` (`src/lib/agenda.ts`: semana/día, nueva cita con huecos reales, confirmar/cancelar/atendida, horario, ajustes y bloqueos) y `/consultorio` (perfil). Pestaña «Citas» del expediente lee `appointments`.
+- Agenda del panel rehecha (18/11/2026): horario semanal por día con etiquetas, alta multi-día con botones L–D y horas en listas cada 30 min, errores junto al formulario, bloqueos solo futuros, y «Nueva cita» con botones de los próximos 28 días (día de semana, número y mes; días sin horario en gris) sin horarios pasados. El panel se publica en Cloudflare (Worker `medbox`, carpeta `out`).
 - Falta en el panel: login/registro con el nuevo diseño, verificación de cédulas desde una interfaz de administrador, y probar la agenda con una cuenta real.
-- Falta en la app: pestañas Hoy/Progreso/Mensajes/Perfil, agenda del paciente y Edge Function `chat-agent` (Gemini).
+- App: pestañas Hoy/Progreso/Mensajes/Perfil y agenda del paciente hechas (18/11/2026), verificadas en el teléfono con cuenta real (dermatología + fisioterapia). Falta: probar reservar/reagendar/cancelar con un especialista que tenga horario cargado en `/agenda` (el de prueba no tenía huecos), conectar el asistente a la Edge Function `chat-agent` con Gemini (hoy interpreta en el dispositivo), guardar el historial en `chat_messages` y notificaciones push (FCM + `pg_cron`).
 - Observatorio estacional y farmacias: construidos en la app. Falta: validación editorial del catálogo de padecimientos contra las cifras del anuario, capa oficial del INEGI para las zonas, token DENUE (idealmente vía Edge Function) y versión web del observatorio.
 - iOS sin validar.
 - Ver la sección 10 para el backlog original.

@@ -25,10 +25,25 @@ void main() {
     await tester.tap(demo);
     await tester.pumpAndSettle();
     expect(find.text('Hola, qué gusto verte'), findsOneWidget);
-    await reveal(tester, find.text('Psicología').first);
+    await tester.ensureVisible(find.text('Psicología').first);
+    await tester.pumpAndSettle();
     expect(find.text('Oftalmología'), findsWidgets);
     expect(tester.takeException(), isNull);
+    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('Tu progreso'), findsOneWidget);
+    for (final tab in ['Progreso', 'Mensajes', 'Perfil', 'Hoy']) {
+      await tester.tap(find.text(tab).last);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: tab);
+    }
+    await tester.ensureVisible(find.text('Psicología').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Psicología').first);
+    await tester.pumpAndSettle();
+    final detail = find.text('Ver todo mi seguimiento de psicología');
+    await reveal(tester, detail);
+    await tester.tap(detail);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Diario emocional'));
     await tester.pumpAndSettle();

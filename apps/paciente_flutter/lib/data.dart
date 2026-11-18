@@ -199,12 +199,21 @@ class CareRecord {
     this.id = '',
     this.evidencePath,
     this.metrics,
+    this.activityId,
+    this.completed,
+    this.pain,
+    this.painAfter,
   });
   final String id, sessionId;
   final DateTime date;
   final Map<String, dynamic> details;
-  final String? evidencePath;
+  final String? evidencePath, activityId;
   final Map<String, dynamic>? metrics;
+  final bool? completed;
+  final int? pain, painAfter;
+
+  /// Same pain value the panel charts: after the exercise when present.
+  int? get reportedPain => painAfter ?? pain;
   bool get hasVideo =>
       evidencePath != null &&
       (evidencePath!.endsWith('.mp4') || evidencePath!.endsWith('.mov'));
@@ -253,7 +262,87 @@ class CareRecord {
     metrics: r['exercise_metrics'] == null
         ? null
         : Map<String, dynamic>.from(r['exercise_metrics'] as Map),
+    activityId: r['activity_id'] as String?,
+    completed: r['completed'] as bool?,
+    pain: r['pain'] as int?,
+    painAfter: r['pain_after'] as int?,
   );
+}
+
+/// Appointment as stored in public.appointments (same rows the panel agenda shows).
+class Appointment {
+  const Appointment({
+    required this.id,
+    required this.sessionId,
+    required this.start,
+    required this.end,
+    required this.status,
+    required this.modality,
+    this.specialty,
+    this.professional = '',
+    this.sessionTitle = '',
+    this.cancelledBy,
+  });
+  final String id, sessionId, status, modality, professional, sessionTitle;
+  final String? cancelledBy;
+  final DateTime start, end;
+  final Specialty? specialty;
+
+  bool get live => status == 'requested' || status == 'confirmed';
+  int get minutes => end.difference(start).inMinutes;
+
+  /// Same labels as the panel (apps/panel_web/src/lib/agenda.ts statusText).
+  static const statusText = {
+    'requested': 'Por confirmar',
+    'confirmed': 'Confirmada',
+    'cancelled': 'Cancelada',
+    'completed': 'Atendida',
+    'no_show': 'No asistió',
+  };
+  static const modalityText = {
+    'in_person': 'Presencial',
+    'video': 'Videollamada',
+  };
+  String get statusLabel => statusText[status] ?? status;
+  String get modalityLabel => modalityText[modality] ?? modality;
+
+  /// Parses a PostgREST tstzrange: '["2026-11-19 15:00:00+00","2026-11-19 15:45:00+00")'.
+  static (DateTime, DateTime) parseRange(String range) {
+    final inner = range.trim().replaceAll(RegExp(r'^[\[(]|[\])]$'), '');
+    final parts = inner
+        .split(',')
+        .map((s) => s.trim().replaceAll('"', ''))
+        .toList();
+    DateTime fix(String s) {
+      var v = s.replaceFirst(' ', 'T');
+      if (RegExp(r'[+-]\d{2}$').hasMatch(v)) v = '$v:00';
+      return DateTime.parse(v).toLocal();
+    }
+
+    return (fix(parts[0]), fix(parts[1]));
+  }
+
+  factory Appointment.fromRow(Map<String, dynamic> r) {
+    final (start, end) = parseRange(r['period'] as String);
+    final s = r['care_sessions'] is List
+        ? ((r['care_sessions'] as List).isEmpty
+              ? null
+              : (r['care_sessions'] as List).first as Map)
+        : r['care_sessions'] as Map?;
+    final sp = s?['specialty'] as String?;
+    return Appointment(
+      id: r['id'] as String,
+      sessionId: r['session_id'] as String,
+      start: start,
+      end: end,
+      status: r['status'] as String,
+      modality: r['modality'] as String? ?? 'in_person',
+      specialty: sp == null ? null : Specialty.values.byName(sp),
+      professional: s?['professional_name'] as String? ?? '',
+      sessionTitle: s?['title'] as String? ?? '',
+      cancelledBy: r['cancelled_by'] as String?,
+    );
+  }
 }
 
 class LinkRequest {
@@ -595,18 +684,28 @@ class CareRepository {
     final video = s == Specialty.physio ? draft.videoPath : null;
     if (demo) {
       _records.add(
-        CareRecord(session.id, DateTime.now(), {
-          ...draft.details,
-          ...CareRecord.labels(
-            completed: draft.completed,
-            pain: pain,
-            laterality: laterality,
-            mood: mood,
-            bodyZone: zone,
-            note: draft.note.trim(),
-            painAfter: painAfter,
-          ),
-        }, metrics: metrics),
+        CareRecord(
+          session.id,
+          DateTime.now(),
+          {
+            ...draft.details,
+            ...CareRecord.labels(
+              completed: draft.completed,
+              pain: pain,
+              laterality: laterality,
+              mood: mood,
+              bodyZone: zone,
+              note: draft.note.trim(),
+              painAfter: painAfter,
+            ),
+          },
+          id: newUuid(),
+          metrics: metrics,
+          activityId: draft.activityId,
+          completed: draft.completed,
+          pain: pain,
+          painAfter: painAfter,
+        ),
       );
       return;
     }
@@ -800,6 +899,110 @@ class CareRepository {
       'specialist_id': _uid,
       'body': body.trim(),
     });
+  }
+
+  // ------------------------------------------------------------- agenda
+  /// Patient's own name from profiles (null in exploration or when empty).
+  Future<String?> myName() async => demo ? null : patientName(_uid);
+
+  String? get myId => demo ? null : _db.auth.currentUser?.id;
+
+  /// Appointments of the signed-in patient (RLS: patient_id = auth.uid()).
+  Future<List<Appointment>> myAppointments() async {
+    if (demo) return const [];
+    final from = DateTime.now().subtract(const Duration(days: 60)).toUtc();
+    final to = DateTime.now().add(const Duration(days: 180)).toUtc();
+    final rows = await _db
+        .from('appointments')
+        .select(
+          'id, session_id, period, status, modality, cancelled_by, care_sessions(title, specialty, professional_name)',
+        )
+        .eq('patient_id', _uid)
+        .overlaps(
+          'period',
+          '[${from.toIso8601String()},${to.toIso8601String()})',
+        )
+        .order('period')
+        .timeout(networkTimeout);
+    return rows.map(Appointment.fromRow).toList();
+  }
+
+  /// Open slots computed by the same RPC the panel uses.
+  Future<List<DateTime>> availableSlots(
+    String sessionId,
+    DateTime from, {
+    int days = 7,
+  }) async {
+    if (demo) return const [];
+    final d =
+        '${from.year.toString().padLeft(4, '0')}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}';
+    final rows =
+        await _db
+                .rpc(
+                  'get_available_slots',
+                  params: {
+                    'p_session_id': sessionId,
+                    'p_from': d,
+                    'p_days': days,
+                  },
+                )
+                .timeout(networkTimeout)
+            as List;
+    return rows
+        .map(
+          (r) => DateTime.parse((r as Map)['slot_start'] as String).toLocal(),
+        )
+        .toList();
+  }
+
+  Future<void> bookAppointment(
+    String sessionId,
+    DateTime start, {
+    String modality = 'in_person',
+  }) async {
+    _ok(
+      await _db
+          .rpc(
+            'book_appointment',
+            params: {
+              'p_session_id': sessionId,
+              'p_start': start.toUtc().toIso8601String(),
+              'p_modality': modality,
+            },
+          )
+          .timeout(networkTimeout),
+      'Ese horario ya no está disponible.',
+    );
+  }
+
+  Future<void> rescheduleAppointment(
+    String appointmentId,
+    DateTime start,
+  ) async {
+    _ok(
+      await _db
+          .rpc(
+            'reschedule_appointment',
+            params: {
+              'p_appointment_id': appointmentId,
+              'p_new_start': start.toUtc().toIso8601String(),
+            },
+          )
+          .timeout(networkTimeout),
+      'No se pudo reagendar.',
+    );
+  }
+
+  Future<void> cancelAppointment(String appointmentId) async {
+    _ok(
+      await _db
+          .rpc(
+            'cancel_appointment',
+            params: {'p_appointment_id': appointmentId},
+          )
+          .timeout(networkTimeout),
+      'Cita no disponible.',
+    );
   }
 
   Future<String?> patientName(String patientId) async {

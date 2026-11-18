@@ -52,8 +52,8 @@ class _Look {
 
   static _Look of(Specialty s) => switch (s) {
     Specialty.skin => const _Look(
-      accent: _orange,
-      soft: _peach,
+      accent: Color(0xFFBE3A5A),
+      soft: Color(0xFFFBE7EC),
       bg: Color(0xFFFFFAF7),
       heroColors: [Color(0xFFFFE6D6), Color(0xFFFFC2A6)],
       subtitle: 'Expediente y seguimiento dermatológico',
@@ -71,8 +71,8 @@ class _Look {
       progressIcon: Icons.add_a_photo_rounded,
     ),
     Specialty.physio => const _Look(
-      accent: Color(0xFF14A38B),
-      soft: Color(0xFFDDF4EF),
+      accent: Color(0xFF0F766E),
+      soft: Color(0xFFE8F6F3),
       bg: Color(0xFFF6FBFA),
       heroColors: [Color(0xFFD9F3EC), Color(0xFF9FDCCD)],
       subtitle: 'Rehabilitación y seguimiento del movimiento',
@@ -90,8 +90,8 @@ class _Look {
       progressIcon: Icons.edit_note_rounded,
     ),
     Specialty.eyes => const _Look(
-      accent: Color(0xFF3477E0),
-      soft: _sky,
+      accent: Color(0xFF2457D6),
+      soft: Color(0xFFEEF3FF),
       bg: Color(0xFFF6F9FF),
       heroColors: [Color(0xFFDDEAFF), Color(0xFFA9C8F7)],
       subtitle: 'Expediente y seguimiento oftalmológico',
@@ -109,8 +109,8 @@ class _Look {
       progressIcon: Icons.edit_note_rounded,
     ),
     Specialty.mind => const _Look(
-      accent: Color(0xFF8A5CD6),
-      soft: _lilac,
+      accent: Color(0xFF6D4AB8),
+      soft: Color(0xFFF1ECFA),
       bg: Color(0xFFFBF8FF),
       heroColors: [Color(0xFFEDE3FB), Color(0xFFCDB6F2)],
       subtitle: 'Acompañamiento psicológico',

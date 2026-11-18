@@ -334,7 +334,6 @@ export default function AgendaPage() {
             rules={rules}
             exceptions={exceptions}
             onChange={load}
-            onError={setError}
           />
           <section aria-labelledby="leg" className={card}>
             <h2 id="leg" className="font-heading mb-3 text-[17px] font-bold">
@@ -404,6 +403,7 @@ export default function AgendaPage() {
           patients={patients}
           names={names}
           today={today}
+          rules={rules}
           onClose={() => setNewOpen(false)}
           onDone={async () => {
             setNewOpen(false);
@@ -447,6 +447,7 @@ function NewAppointment({
   patients,
   names,
   today,
+  rules,
   onClose,
   onDone,
 }: {
@@ -454,11 +455,14 @@ function NewAppointment({
   patients: CareSession[];
   names: Record<string, string>;
   today: string;
+  rules: AvailabilityRule[];
   onClose: () => void;
   onDone: () => Promise<void>;
 }) {
   const [sessionId, setSessionId] = useState(patients[0]?.id ?? "");
-  const [day, setDay] = useState(today);
+  const openDays = new Set(rules.map((r) => r.weekday));
+  const nextDays = Array.from({ length: 28 }, (_, i) => addDays(today, i));
+  const [day, setDay] = useState(() => nextDays.find((d) => openDays.has(isoWeekday(d))) ?? today);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [pick, setPick] = useState<Slot | null>(null);
   const [modality, setModality] = useState<Modality>("in_person");
@@ -471,12 +475,16 @@ function NewAppointment({
     setSlots(null);
     setPick(null);
     availableSlots(sessionId, day, 1)
-      .then(setSlots)
+      .then((list) => setSlots(list.filter((s) => s.start > new Date())))
       .catch((e: Error) => setErr(e.message));
   }, [sessionId, day]);
 
   const submit = async () => {
     if (!pick) return;
+    if (pick.start <= new Date()) {
+      setErr("Ese horario ya pasó. Elige otro.");
+      return;
+    }
     setBusy(true);
     try {
       await bookAppointment(sessionId, pick.start, modality, notes);
@@ -499,15 +507,46 @@ function NewAppointment({
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-sm font-semibold">
-        Día
-        <input type="date" className={field} value={day} min={today} onChange={(e) => e.target.value && setDay(e.target.value)} />
-      </label>
+      <div className="flex min-w-0 flex-col gap-2">
+        <span className="text-sm font-semibold">
+          Día · <span className="font-normal capitalize text-[#334155]">{formatDay(day, { weekday: "long", day: "numeric", month: "long" })}</span>
+        </span>
+        <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Elegir día">
+          {nextDays.map((d) => {
+            const on = d === day;
+            const closed = !openDays.has(isoWeekday(d));
+            return (
+              <button
+                key={d}
+                type="button"
+                aria-pressed={on}
+                aria-label={`${formatDay(d, { weekday: "long", day: "numeric", month: "long" })}${closed ? ", sin horario" : ""}`}
+                onClick={() => setDay(d)}
+                className={`flex w-[58px] shrink-0 flex-col items-center rounded-xl py-2 transition ${
+                  on
+                    ? "bg-[#2457D6] text-white"
+                    : closed
+                      ? "bg-[#F5F7FA] text-[#94A0B4]"
+                      : "bg-[#EEF3FF] text-[#1A3FA3] hover:bg-[#DCE6FF]"
+                }`}
+              >
+                <span className="text-[11px] font-bold uppercase">{formatDay(d, { weekday: "short" }).replace(".", "")}</span>
+                <span className="font-heading text-lg font-extrabold leading-tight">{Number(d.slice(8, 10))}</span>
+                <span className="text-[11px] font-semibold">{formatDay(d, { month: "short" }).replace(".", "")}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="flex flex-col gap-2">
         <span className="text-sm font-semibold">Horarios libres</span>
         {slots === null && !err && <span className="text-sm text-[#5B6475]">Buscando horarios…</span>}
         {slots?.length === 0 && (
-          <span className="text-sm text-[#5B6475]">No hay horarios libres ese día. Revisa tu horario disponible o elige otro día.</span>
+          <span className="text-sm text-[#5B6475]">
+            {openDays.has(isoWeekday(day))
+              ? "Ya no quedan horarios libres ese día. Elige otro."
+              : "No tienes horario ese día. Agrégalo en «Horario disponible» o elige un día en azul."}
+          </span>
         )}
         <div className="flex flex-wrap gap-2">
           {slots?.map((s) => {
@@ -554,124 +593,239 @@ function NewAppointment({
   );
 }
 
+/** Horas cada 30 min entre 06:00 y 22:00 para los selectores. */
+const TIME_OPTIONS = Array.from({ length: 33 }, (_, i) => {
+  const m = 6 * 60 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+});
+const DAY_LETTERS = ["", "L", "M", "M", "J", "V", "S", "D"];
+
+function Notice({ kind, text }: { kind: "error" | "ok"; text: string }) {
+  return (
+    <p
+      role={kind === "error" ? "alert" : "status"}
+      className={`rounded-xl px-3 py-2 text-[13px] ${
+        kind === "error" ? "bg-[#FDF0F0] text-[#A12A2A]" : "bg-[#E8F6F3] text-[#0B5E57]"
+      }`}
+    >
+      {text}
+    </p>
+  );
+}
+
 function Availability({
   settings,
   rules,
   exceptions,
   onChange,
-  onError,
 }: {
   settings: SchedulingSettings;
   rules: AvailabilityRule[];
   exceptions: AvailabilityException[];
   onChange: () => Promise<void>;
-  onError: (m: string) => void;
 }) {
   const [draft, setDraft] = useState(settings);
-  const [wd, setWd] = useState(1);
+  const [picked, setPicked] = useState<number[]>([1, 2, 3, 4, 5]);
   const [st, setSt] = useState("09:00");
   const [en, setEn] = useState("14:00");
   const [bFrom, setBFrom] = useState("");
   const [bTo, setBTo] = useState("");
   const [bReason, setBReason] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [msg, setMsg] = useState<{ where: "rule" | "settings" | "block"; kind: "error" | "ok"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
   useEffect(() => setDraft(settings), [settings]);
   const tz = settings.timezone;
 
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (where: "rule" | "settings" | "block", fn: () => Promise<string | void>) => {
+    setBusy(true);
+    setMsg(null);
     try {
-      await fn();
+      const ok = await fn();
       await onChange();
+      if (ok) setMsg({ where, kind: "ok", text: ok });
     } catch (e) {
-      onError((e as Error).message);
+      setMsg({ where, kind: "error", text: (e as Error).message });
+    } finally {
+      setBusy(false);
     }
   };
 
+  const toggleDay = (d: number) =>
+    setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort((a, b) => a - b)));
+
+  const addRules = () =>
+    run("rule", async () => {
+      if (picked.length === 0) throw new Error("Elige al menos un día.");
+      if (st >= en) throw new Error("La hora de inicio debe ser antes que la de fin.");
+      const clash = picked.filter((d) => rules.some((r) => r.weekday === d && r.start_time < en && st < r.end_time));
+      if (clash.length) {
+        throw new Error(
+          `Ya tienes horario que se cruza el ${clash.map((d) => weekdayLabels[d].toLowerCase()).join(", ")}. Quítalo o elige otras horas.`,
+        );
+      }
+      for (const d of picked) await addRule(d, st, en);
+      return `Horario agregado: ${picked.map((d) => weekdayLabels[d]).join(", ")} de ${st} a ${en}.`;
+    });
+
+  const nowLocal = (() => {
+    const z = zoned(new Date(), tz);
+    return `${dayKey(new Date(), tz)}T${String(z.h).padStart(2, "0")}:${String(z.min).padStart(2, "0")}`;
+  })();
   const toDate = (v: string) => localToDate(v.slice(0, 10), v.slice(11, 16), tz);
+  const fieldMsg = (where: "rule" | "settings" | "block") =>
+    msg && msg.where === where ? <Notice kind={msg.kind} text={msg.text} /> : null;
 
   return (
     <section aria-labelledby="disp" className={`${card} flex flex-col gap-4`}>
-      <h2 id="disp" className="font-heading text-[17px] font-bold">
-        Horario disponible
-      </h2>
-      {rules.length === 0 && (
-        <p className="rounded-xl bg-[#FFF6E5] p-3 text-sm text-[#8A5300]">
-          Aún no tienes horario. Sin horario, tus pacientes y el asistente no pueden agendar.
+      <div>
+        <h2 id="disp" className="font-heading text-[17px] font-bold">
+          Horario disponible
+        </h2>
+        <p className="text-[13px] text-[#5B6475]">
+          Tus pacientes y el asistente solo pueden reservar dentro de este horario.
         </p>
-      )}
-      <ul className="flex flex-col">
-        {rules.map((r) => (
-          <li key={r.id} className="flex items-center justify-between gap-2 border-t border-[#EEF1F5] py-2 text-sm">
-            <span className="font-semibold">{weekdayLabels[r.weekday]}</span>
-            <span className="text-[#334155]">
-              {r.start_time} – {r.end_time}
-            </span>
-            <button
-              type="button"
-              aria-label={`Quitar ${weekdayLabels[r.weekday]} ${r.start_time}–${r.end_time}`}
-              className="flex h-11 w-11 items-center justify-center rounded-xl text-[#5B6475] hover:bg-[#FDF0F0] hover:text-[#A12A2A]"
-              onClick={() => run(() => deleteRule(r.id))}
-            >
-              ×
-            </button>
-          </li>
-        ))}
+      </div>
+
+      <ul className="flex flex-col" aria-label="Horario semanal">
+        {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+          const list = rules.filter((r) => r.weekday === d);
+          return (
+            <li key={d} className="flex min-h-[44px] items-center gap-3 border-t border-[#EEF1F5] py-1.5 text-sm">
+              <span className="w-[84px] shrink-0 font-semibold">{weekdayLabels[d]}</span>
+              <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                {list.length === 0 && <span className="text-[13px] text-[#94A0B4]">Sin horario</span>}
+                {list.map((r) => (
+                  <span
+                    key={r.id}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#EEF3FF] py-1 pl-3 pr-1 text-[13px] font-semibold text-[#1A3FA3]"
+                  >
+                    {r.start_time}–{r.end_time}
+                    <button
+                      type="button"
+                      aria-label={`Quitar ${weekdayLabels[r.weekday]} ${r.start_time}–${r.end_time}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-base hover:bg-[#DCE6FF]"
+                      disabled={busy}
+                      onClick={() => run("rule", () => deleteRule(r.id))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </li>
+          );
+        })}
       </ul>
+
       <form
-        className="grid min-w-0 grid-cols-2 items-end gap-3"
+        className="flex flex-col gap-3 rounded-xl border border-[#E5E9F0] p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          void run(() => addRule(wd, st, en));
+          void addRules();
         }}
       >
-        <label className="col-span-2 flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
-          Día
-          <select className={field} value={wd} onChange={(e) => setWd(Number(e.target.value))}>
-            {weekdayLabels.slice(1).map((l, i) => (
-              <option key={l} value={i + 1}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
-          Desde
-          <input type="time" className={field} value={st} onChange={(e) => setSt(e.target.value)} />
-        </label>
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
-          Hasta
-          <input type="time" className={field} value={en} onChange={(e) => setEn(e.target.value)} />
-        </label>
-        <button type="submit" className={`${btnGhost} col-span-2 w-full`}>
-          Agregar
+        <h3 className="text-sm font-bold">Agregar horario</h3>
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-xs font-semibold text-[#334155]">Días</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+              const on = picked.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  aria-label={weekdayLabels[d]}
+                  title={weekdayLabels[d]}
+                  onClick={() => toggleDay(d)}
+                  className={`h-11 w-11 rounded-full text-sm font-bold transition ${
+                    on ? "bg-[#2457D6] text-white" : "border border-[#D5DCE7] bg-white text-[#334155] hover:bg-[#F5F7FA]"
+                  }`}
+                >
+                  {DAY_LETTERS[d]}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs font-semibold">
+            <button type="button" className="text-[#2457D6] hover:underline" onClick={() => setPicked([1, 2, 3, 4, 5])}>
+              Lunes a viernes
+            </button>
+            <button type="button" className="text-[#2457D6] hover:underline" onClick={() => setPicked([1, 2, 3, 4, 5, 6])}>
+              Lunes a sábado
+            </button>
+            <button type="button" className="text-[#5B6475] hover:underline" onClick={() => setPicked([])}>
+              Ninguno
+            </button>
+          </div>
+        </fieldset>
+        <div className="grid min-w-0 grid-cols-2 gap-3">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
+            Desde
+            <select
+              className={field}
+              value={st}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSt(v);
+                if (en <= v) setEn(TIME_OPTIONS[Math.min(TIME_OPTIONS.indexOf(v) + 2, TIME_OPTIONS.length - 1)]);
+              }}
+            >
+              {TIME_OPTIONS.slice(0, -1).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
+            Hasta
+            <select className={field} value={en} onChange={(e) => setEn(e.target.value)}>
+              {TIME_OPTIONS.filter((t) => t > st).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {fieldMsg("rule")}
+        <button type="submit" className={`${btnPrimary} w-full`} disabled={busy || picked.length === 0 || st >= en}>
+          {picked.length === 0
+            ? "Elige al menos un día"
+            : `Agregar ${st}–${en} a ${picked.length === 7 ? "toda la semana" : picked.length === 1 ? weekdayLabels[picked[0]].toLowerCase() : `${picked.length} días`}`}
         </button>
       </form>
 
       <div className="flex flex-col gap-3 rounded-xl bg-[#F5F7FA] p-4">
         <div className="grid grid-cols-2 gap-2">
           <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
-            Duración (min)
-            <input
-              type="number"
-              min={10}
-              max={240}
-              step={5}
+            Duración de cita
+            <select
               className={field}
               value={draft.slot_minutes}
               onChange={(e) => setDraft({ ...draft, slot_minutes: Number(e.target.value) })}
-            />
+            >
+              {[15, 20, 30, 40, 45, 50, 60, 75, 90, 120].map((m) => (
+                <option key={m} value={m}>
+                  {m} min
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
-            Margen (min)
-            <input
-              type="number"
-              min={0}
-              max={120}
-              step={5}
+            Descanso entre citas
+            <select
               className={field}
               value={draft.buffer_minutes}
               onChange={(e) => setDraft({ ...draft, buffer_minutes: Number(e.target.value) })}
-            />
+            >
+              {[0, 5, 10, 15, 20, 30, 45, 60].map((m) => (
+                <option key={m} value={m}>
+                  {m === 0 ? "Sin descanso" : `${m} min`}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <label className="flex min-h-[44px] items-center justify-between gap-3 text-[13px] font-semibold">
@@ -683,36 +837,38 @@ function Availability({
             onChange={(e) => setDraft({ ...draft, auto_confirm: e.target.checked })}
           />
         </label>
+        {fieldMsg("settings")}
         <button
           type="button"
           className={btnPrimary}
+          disabled={busy}
           onClick={() =>
-            run(async () => {
+            run("settings", async () => {
               await saveSettings(draft);
-              setSaved(true);
-              setTimeout(() => setSaved(false), 2000);
+              return "Ajustes guardados.";
             })
           }
         >
-          {saved ? "Guardado" : "Guardar ajustes"}
+          Guardar ajustes
         </button>
         <span className="text-xs text-[#5B6475]">Zona horaria: {tz}</span>
       </div>
 
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-bold">Bloqueos (vacaciones, congresos)</h3>
+        {exceptions.length === 0 && <p className="text-[13px] text-[#94A0B4]">Sin bloqueos próximos.</p>}
         {exceptions.map((x) => (
           <div key={x.id} className="flex items-center justify-between gap-2 text-[13px] text-[#334155]">
-            <span>
-              {formatDay(dayKey(x.start, tz), { day: "numeric", month: "short" })} {formatTime(x.start, tz)} →{" "}
-              {formatDay(dayKey(x.end, tz), { day: "numeric", month: "short" })} {formatTime(x.end, tz)}
+            <span className="capitalize">
+              {formatDay(dayKey(x.start, tz), { weekday: "short", day: "numeric", month: "short" })} {formatTime(x.start, tz)} →{" "}
+              {formatDay(dayKey(x.end, tz), { weekday: "short", day: "numeric", month: "short" })} {formatTime(x.end, tz)}
               {x.reason ? ` · ${x.reason}` : ""}
             </span>
             <button
               type="button"
               aria-label="Quitar bloqueo"
               className="flex h-11 w-11 items-center justify-center rounded-xl text-[#5B6475] hover:bg-[#FDF0F0] hover:text-[#A12A2A]"
-              onClick={() => run(() => deleteException(x.id))}
+              onClick={() => run("block", () => deleteException(x.id))}
             >
               ×
             </button>
@@ -723,29 +879,46 @@ function Availability({
           onSubmit={(e) => {
             e.preventDefault();
             if (!bFrom || !bTo) return;
-            void run(async () => {
-              await addException(toDate(bFrom), toDate(bTo), bReason);
+            void run("block", async () => {
+              const from = toDate(bFrom);
+              const to = toDate(bTo);
+              if (to <= new Date()) throw new Error("El bloqueo ya pasó. Elige fechas futuras.");
+              await addException(from, to, bReason);
               setBFrom("");
               setBTo("");
               setBReason("");
+              return "Horario bloqueado.";
             });
           }}
         >
           <div className="grid min-w-0 grid-cols-1 gap-3">
             <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
               Desde
-              <input type="datetime-local" className={field} value={bFrom} onChange={(e) => setBFrom(e.target.value)} />
+              <input
+                type="datetime-local"
+                className={field}
+                value={bFrom}
+                min={nowLocal}
+                onChange={(e) => setBFrom(e.target.value)}
+              />
             </label>
             <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
               Hasta
-              <input type="datetime-local" className={field} value={bTo} onChange={(e) => setBTo(e.target.value)} />
+              <input
+                type="datetime-local"
+                className={field}
+                value={bTo}
+                min={bFrom || nowLocal}
+                onChange={(e) => setBTo(e.target.value)}
+              />
             </label>
           </div>
           <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
             Motivo (opcional)
             <input type="text" maxLength={200} className={field} value={bReason} onChange={(e) => setBReason(e.target.value)} />
           </label>
-          <button type="submit" className={btnGhost} disabled={!bFrom || !bTo}>
+          {fieldMsg("block")}
+          <button type="submit" className={btnGhost} disabled={!bFrom || !bTo || busy}>
             Bloquear horario
           </button>
         </form>
