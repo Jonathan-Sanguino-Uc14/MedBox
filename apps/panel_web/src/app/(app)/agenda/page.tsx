@@ -60,8 +60,8 @@ const btn =
 const btnPrimary = `${btn} bg-[#2457D6] text-white hover:bg-[#1A3FA3]`;
 const btnGhost = `${btn} border border-[#D5DCE7] bg-white text-[#0F172A] hover:bg-[#F5F7FA]`;
 const field =
-  "min-h-[44px] rounded-xl border border-[#D5DCE7] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2457D6]";
-const card = "rounded-2xl border border-[#E5E9F0] bg-white p-5";
+  "min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#D5DCE7] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2457D6]";
+const card = "min-w-0 rounded-2xl border border-[#E5E9F0] bg-white p-5";
 
 export default function AgendaPage() {
   const { specialty } = useSpecialist();
@@ -532,7 +532,7 @@ function NewAppointment({
         <legend className="mb-1 font-semibold">Modalidad</legend>
         {(["in_person", "video"] as const).map((m) => (
           <label key={m} className="flex min-h-[44px] items-center gap-2">
-            <input type="radio" name="modality" checked={modality === m} onChange={() => setModality(m)} className="h-5 w-5 accent-[#2457D6]" />
+            <input type="radio" name="modality" checked={modality === m} onChange={() => setModality(m)} className="h-5 w-5 shrink-0 accent-[#2457D6]" />
             {m === "in_person" ? "Presencial" : "Videollamada"}
           </label>
         ))}
@@ -618,13 +618,13 @@ function Availability({
         ))}
       </ul>
       <form
-        className="grid grid-cols-[1fr_auto_auto] items-end gap-2"
+        className="grid min-w-0 grid-cols-2 items-end gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           void run(() => addRule(wd, st, en));
         }}
       >
-        <label className="col-span-3 flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+        <label className="col-span-2 flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
           Día
           <select className={field} value={wd} onChange={(e) => setWd(Number(e.target.value))}>
             {weekdayLabels.slice(1).map((l, i) => (
@@ -634,22 +634,22 @@ function Availability({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
           Desde
           <input type="time" className={field} value={st} onChange={(e) => setSt(e.target.value)} />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
           Hasta
           <input type="time" className={field} value={en} onChange={(e) => setEn(e.target.value)} />
         </label>
-        <button type="submit" className={btnGhost}>
+        <button type="submit" className={`${btnGhost} col-span-2 w-full`}>
           Agregar
         </button>
       </form>
 
       <div className="flex flex-col gap-3 rounded-xl bg-[#F5F7FA] p-4">
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
             Duración (min)
             <input
               type="number"
@@ -661,7 +661,7 @@ function Availability({
               onChange={(e) => setDraft({ ...draft, slot_minutes: Number(e.target.value) })}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
             Margen (min)
             <input
               type="number"
@@ -678,7 +678,7 @@ function Availability({
           Confirmar citas automáticamente
           <input
             type="checkbox"
-            className="h-5 w-5 accent-[#2457D6]"
+            className="h-5 w-5 shrink-0 accent-[#2457D6]"
             checked={draft.auto_confirm}
             onChange={(e) => setDraft({ ...draft, auto_confirm: e.target.checked })}
           />
@@ -731,17 +731,17 @@ function Availability({
             });
           }}
         >
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+          <div className="grid min-w-0 grid-cols-1 gap-3">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
               Desde
               <input type="datetime-local" className={field} value={bFrom} onChange={(e) => setBFrom(e.target.value)} />
             </label>
-            <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
               Hasta
               <input type="datetime-local" className={field} value={bTo} onChange={(e) => setBTo(e.target.value)} />
             </label>
           </div>
-          <label className="flex flex-col gap-1 text-xs font-semibold text-[#334155]">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[#334155]">
             Motivo (opcional)
             <input type="text" maxLength={200} className={field} value={bReason} onChange={(e) => setBReason(e.target.value)} />
           </label>
