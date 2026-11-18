@@ -81,11 +81,15 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true);
 
   const today = dayKey(new Date(), tz);
+  // Depende de un booleano (no de la lista de horarios) para que recargar no vuelva a disparar la carga.
+  const opensSunday = rules.some((r) => r.weekday === 7);
   const days = useMemo(() => {
     if (view === "day") return [dayFocus];
-    const n = rules.some((r) => r.weekday === 7) ? 7 : 6;
+    const n = opensSunday ? 7 : 6;
     return Array.from({ length: n }, (_, i) => addDays(weekStart, i));
-  }, [view, dayFocus, weekStart, rules]);
+  }, [view, dayFocus, weekStart, opensSunday]);
+  const rangeFrom = days[0];
+  const rangeTo = days[days.length - 1];
 
   const [startHour, endHour] = useMemo(() => {
     let lo = 8;
@@ -108,8 +112,8 @@ export default function AgendaPage() {
     try {
       const s = await getSettings();
       setSettings(s);
-      const from = localToDate(days[0], "00:00", s.timezone);
-      const to = localToDate(addDays(days[days.length - 1], 1), "00:00", s.timezone);
+      const from = localToDate(rangeFrom, "00:00", s.timezone);
+      const to = localToDate(addDays(rangeTo, 1), "00:00", s.timezone);
       const [a, r, x, ss] = await Promise.all([appointmentsBetween(from, to), getRules(), getExceptions(), sessions()]);
       const active = ss.filter((v) => v.active && v.specialty === specialty);
       setAppts(a.filter((v) => v.status !== "cancelled"));
@@ -123,7 +127,7 @@ export default function AgendaPage() {
     } finally {
       setLoading(false);
     }
-  }, [days, specialty]);
+  }, [rangeFrom, rangeTo, specialty]);
 
   useEffect(() => {
     void load();
@@ -165,6 +169,9 @@ export default function AgendaPage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-[28px] font-extrabold tracking-tight">Agenda</h1>
           <span className="text-[15px] font-medium capitalize text-[#5B6475]">{rangeTitle}</span>
+          <span aria-live="polite" className={`text-xs text-[#5B6475] transition-opacity ${loading ? "opacity-100" : "opacity-0"}`}>
+            Actualizando…
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-xl border border-[#E5E9F0] bg-white p-1" role="group" aria-label="Vista">
@@ -205,7 +212,7 @@ export default function AgendaPage() {
 
       <div className="flex flex-wrap items-start gap-6">
         <section aria-label="Calendario" className="min-w-0 flex-[999_1_640px] overflow-x-auto rounded-2xl border border-[#E5E9F0] bg-white">
-          <div style={{ minWidth: view === "day" ? 360 : 760 }}>
+          <div style={{ minWidth: view === "day" ? 320 : 64 + days.length * 84 }}>
             <div className="grid border-b border-[#E5E9F0]" style={{ gridTemplateColumns: `64px repeat(${days.length}, minmax(0,1fr))` }}>
               <span />
               {days.map((d) => (
@@ -260,20 +267,30 @@ export default function AgendaPage() {
                     {open.map((r) => {
                       const top = toY(Number(r.start_time.slice(0, 2)), Number(r.start_time.slice(3, 5)));
                       const bottom = toY(Number(r.end_time.slice(0, 2)), Number(r.end_time.slice(3, 5)));
+                      const past = d < today;
                       return (
                         <div
                           key={r.id}
-                          aria-hidden="true"
-                          className="absolute inset-x-0"
+                          title={`Disponible ${r.start_time}–${r.end_time}`}
+                          className="absolute inset-x-0 border-l-[3px]"
                           style={{
                             top,
                             height: bottom - top,
-                            backgroundColor: d === today ? "#FAFCFF" : "#FFFFFF",
-                            backgroundImage: "linear-gradient(#EEF1F5 1px, transparent 1px)",
+                            borderLeftColor: past ? "#CBD5E1" : "#2457D6",
+                            backgroundColor: past ? "#F1F4F8" : "#EEF3FF",
+                            backgroundImage: "linear-gradient(#DCE5F7 1px, transparent 1px)",
                             backgroundSize: `100% ${HOUR_PX}px`,
                             backgroundPosition: `0 ${-top}px`,
                           }}
-                        />
+                        >
+                          <span
+                            className={`absolute left-1.5 top-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              past ? "text-[#94A0B4]" : "bg-white/80 text-[#1A3FA3]"
+                            }`}
+                          >
+                            {r.start_time}–{r.end_time}
+                          </span>
+                        </div>
                       );
                     })}
                     {blocks.map((x) => {
@@ -325,7 +342,6 @@ export default function AgendaPage() {
               })}
             </div>
           </div>
-          {loading && <p className="px-5 py-3 text-sm text-[#5B6475]">Cargando…</p>}
         </section>
 
         <aside className="flex min-w-0 flex-[1_1_320px] flex-col gap-5">
@@ -337,9 +353,10 @@ export default function AgendaPage() {
           />
           <section aria-labelledby="leg" className={card}>
             <h2 id="leg" className="font-heading mb-3 text-[17px] font-bold">
-              Origen de la cita
+              Leyenda
             </h2>
             <ul className="flex flex-col gap-2 text-[13px]">
+              <li className="flex items-center gap-2.5"><span className="h-3.5 w-3.5 rounded border-l-[3px] border-[#2457D6] bg-[#EEF3FF]" />Tu horario disponible</li>
               <li className="flex items-center gap-2.5"><span className="h-3.5 w-3.5 rounded bg-[#E8F6F3]" />Agendada por ti</li>
               <li className="flex items-center gap-2.5"><span className="h-3.5 w-3.5 rounded bg-[#E3EBFF]" />Agendada por el paciente o el asistente</li>
               <li className="flex items-center gap-2.5"><span className="h-3.5 w-3.5 rounded bg-[#F1F4F8]" />Videollamada</li>
